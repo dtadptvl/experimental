@@ -15,22 +15,22 @@ jobs:
       - name: Prepare existing Kilo environment
         shell: pwsh
         run: |
-          $home = Join-Path $env:RUNNER_TEMP 'ps-home'
+          $testProfile = Join-Path $env:RUNNER_TEMP 'ps-home'
           $fakeBin = Join-Path $env:RUNNER_TEMP 'fake-bin'
-          New-Item -ItemType Directory -Force -Path "$home\.config\kilo\agent", "$home\.config\kilo\plugin", "$home\.local\share\kilo", "$home\.local\state\kilo", $fakeBin | Out-Null
+          New-Item -ItemType Directory -Force -Path "$testProfile\.config\kilo\agent", "$testProfile\.config\kilo\plugin", "$testProfile\.local\share\kilo", "$testProfile\.local\state\kilo", $fakeBin | Out-Null
 
-          Set-Content -NoNewline -Path "$home\.config\kilo\kilo.jsonc" -Value 'CONFIG-SENTINEL'
-          Set-Content -NoNewline -Path "$home\.config\kilo\plugin\keep.js" -Value 'PLUGIN-SENTINEL'
-          Set-Content -NoNewline -Path "$home\.config\kilo\agent\keep.md" -Value 'OTHER-AGENT-SENTINEL'
-          Set-Content -NoNewline -Path "$home\.config\kilo\agent\prime.md" -Value 'OLD-PRIME'
-          Set-Content -NoNewline -Path "$home\.config\kilo\agent\sub.md" -Value 'OLD-SUB'
-          Set-Content -NoNewline -Path "$home\.local\share\kilo\auth.json" -Value 'AUTH-SENTINEL'
-          Set-Content -NoNewline -Path "$home\.local\state\kilo\state.txt" -Value 'STATE-SENTINEL'
+          Set-Content -NoNewline -Path "$testProfile\.config\kilo\kilo.jsonc" -Value 'CONFIG-SENTINEL'
+          Set-Content -NoNewline -Path "$testProfile\.config\kilo\plugin\keep.js" -Value 'PLUGIN-SENTINEL'
+          Set-Content -NoNewline -Path "$testProfile\.config\kilo\agent\keep.md" -Value 'OTHER-AGENT-SENTINEL'
+          Set-Content -NoNewline -Path "$testProfile\.config\kilo\agent\prime.md" -Value 'OLD-PRIME'
+          Set-Content -NoNewline -Path "$testProfile\.config\kilo\agent\sub.md" -Value 'OLD-SUB'
+          Set-Content -NoNewline -Path "$testProfile\.local\share\kilo\auth.json" -Value 'AUTH-SENTINEL'
+          Set-Content -NoNewline -Path "$testProfile\.local\state\kilo\state.txt" -Value 'STATE-SENTINEL'
 
-          '@echo off`r`necho fake-kilo' | Set-Content -NoNewline -Path "$fakeBin\kilo.cmd"
-          '@echo off`r`necho called>"%RUNNER_TEMP%\npm-was-called.txt"`r`nexit /b 77' | Set-Content -NoNewline -Path "$fakeBin\npm.cmd"
+          "@echo off`r`necho fake-kilo`r`n" | Set-Content -NoNewline -Path "$fakeBin\kilo.cmd"
+          "@echo off`r`necho called>\"%RUNNER_TEMP%\npm-was-called.txt\"`r`nexit /b 77`r`n" | Set-Content -NoNewline -Path "$fakeBin\npm.cmd"
 
-          "USERPROFILE=$home" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "USERPROFILE=$testProfile" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "PATH=$fakeBin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "PRIME_SUB_NO_PAUSE=1" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
@@ -41,23 +41,23 @@ jobs:
       - name: Assert non-destructive behavior
         shell: pwsh
         run: |
-          $home = $env:USERPROFILE
+          $testProfile = $env:USERPROFILE
           if (Test-Path "$env:RUNNER_TEMP\npm-was-called.txt") { throw 'npm was called even though kilo already existed' }
 
-          if ((Get-Content -Raw "$home\.config\kilo\kilo.jsonc") -ne 'CONFIG-SENTINEL') { throw 'kilo.jsonc changed' }
-          if ((Get-Content -Raw "$home\.config\kilo\plugin\keep.js") -ne 'PLUGIN-SENTINEL') { throw 'plugin changed' }
-          if ((Get-Content -Raw "$home\.config\kilo\agent\keep.md") -ne 'OTHER-AGENT-SENTINEL') { throw 'other agent changed' }
-          if ((Get-Content -Raw "$home\.local\share\kilo\auth.json") -ne 'AUTH-SENTINEL') { throw 'auth changed' }
-          if ((Get-Content -Raw "$home\.local\state\kilo\state.txt") -ne 'STATE-SENTINEL') { throw 'state changed' }
+          if ((Get-Content -Raw "$testProfile\.config\kilo\kilo.jsonc") -ne 'CONFIG-SENTINEL') { throw 'kilo.jsonc changed' }
+          if ((Get-Content -Raw "$testProfile\.config\kilo\plugin\keep.js") -ne 'PLUGIN-SENTINEL') { throw 'plugin changed' }
+          if ((Get-Content -Raw "$testProfile\.config\kilo\agent\keep.md") -ne 'OTHER-AGENT-SENTINEL') { throw 'other agent changed' }
+          if ((Get-Content -Raw "$testProfile\.local\share\kilo\auth.json") -ne 'AUTH-SENTINEL') { throw 'auth changed' }
+          if ((Get-Content -Raw "$testProfile\.local\state\kilo\state.txt") -ne 'STATE-SENTINEL') { throw 'state changed' }
 
-          $installedPrime = Get-Content -Raw "$home\.config\kilo\agent\prime.md"
-          $installedSub = Get-Content -Raw "$home\.config\kilo\agent\sub.md"
+          $installedPrime = Get-Content -Raw "$testProfile\.config\kilo\agent\prime.md"
+          $installedSub = Get-Content -Raw "$testProfile\.config\kilo\agent\sub.md"
           $sourcePrime = Get-Content -Raw 'prime-sub\agents\prime.md'
           $sourceSub = Get-Content -Raw 'prime-sub\agents\sub.md'
           if ($installedPrime -ne $sourcePrime) { throw 'Prime was not installed exactly' }
           if ($installedSub -ne $sourceSub) { throw 'Sub was not installed exactly' }
 
-          $backups = Get-ChildItem "$home\.config\kilo\prime-sub-backups" -Directory
+          $backups = Get-ChildItem "$testProfile\.config\kilo\prime-sub-backups" -Directory
           if ($backups.Count -ne 1) { throw "Expected exactly one backup directory; got $($backups.Count)" }
           $backup = $backups[0].FullName
           if ((Get-Content -Raw "$backup\prime.md") -ne 'OLD-PRIME') { throw 'Prime backup incorrect' }

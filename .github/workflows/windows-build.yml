@@ -8,6 +8,10 @@ on:
       - 'kilo-session-manager/**'
   pull_request:
 
+concurrency:
+  group: kilo-session-manager-windows-ci
+  cancel-in-progress: true
+
 jobs:
   build-and-smoke-test:
     runs-on: windows-latest

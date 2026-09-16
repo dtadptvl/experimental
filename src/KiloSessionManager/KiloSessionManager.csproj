@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.17763.0</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>KiloSessionManager</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\KiloSession.Shared\KiloSession.Shared.csproj" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
+  </ItemGroup>
+
+  <Target Name="PrepareTerminalAssets" BeforeTargets="Build;Publish">
+    <Exec WorkingDirectory="$(MSBuildProjectDirectory)\Web" Command="npm install --no-audit --no-fund" />
+    <MakeDir Directories="$(MSBuildProjectDirectory)\Web\dist" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\Web\index.html" DestinationFolder="$(MSBuildProjectDirectory)\Web\dist" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\Web\app.js" DestinationFolder="$(MSBuildProjectDirectory)\Web\dist" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\Web\node_modules\@xterm\xterm\lib\xterm.js" DestinationFiles="$(MSBuildProjectDirectory)\Web\dist\xterm.js" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\Web\node_modules\@xterm\xterm\css\xterm.css" DestinationFiles="$(MSBuildProjectDirectory)\Web\dist\xterm.css" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\Web\node_modules\@xterm\addon-fit\lib\addon-fit.js" DestinationFiles="$(MSBuildProjectDirectory)\Web\dist\addon-fit.js" />
+  </Target>
+
+  <Target Name="CopyTerminalAssetsToBuild" AfterTargets="Build">
+    <ItemGroup>
+      <TerminalAsset Include="$(MSBuildProjectDirectory)\Web\dist\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(TerminalAsset)" DestinationFiles="@(TerminalAsset->'$(TargetDir)wwwroot\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopyTerminalAssetsToPublish" AfterTargets="Publish">
+    <ItemGroup>
+      <PublishTerminalAsset Include="$(MSBuildProjectDirectory)\Web\dist\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(PublishTerminalAsset)" DestinationFiles="@(PublishTerminalAsset->'$(PublishDir)wwwroot\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

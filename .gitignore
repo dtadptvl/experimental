@@ -1,0 +1,8 @@
+**/bin/
+**/obj/
+**/node_modules/
+**/Web/dist/
+publish/
+*.zip
+.vs/
+data/

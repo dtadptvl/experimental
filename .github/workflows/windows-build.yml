@@ -1,0 +1,50 @@
+name: Windows build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - kilo-session-manager
+      - 'kilo-session-manager/**'
+  pull_request:
+
+jobs:
+  build-and-smoke-test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Publish portable folder
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path publish | Out-Null
+          dotnet publish src/KiloSessionHost/KiloSessionHost.csproj -c Release -r win-x64 --self-contained true -o publish
+          dotnet publish src/KiloSessionManager/KiloSessionManager.csproj -c Release -r win-x64 --self-contained true -o publish
+
+      - name: SessionHost ConPTY smoke test
+        shell: pwsh
+        run: ./tests/host-smoke.ps1 -HostPath ./publish/KiloSessionHost.exe
+
+      - name: Package
+        shell: pwsh
+        run: Compress-Archive -Path ./publish/* -DestinationPath ./KiloSessionManager-win-x64.zip -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KiloSessionManager-win-x64
+          path: KiloSessionManager-win-x64.zip
+          if-no-files-found: error

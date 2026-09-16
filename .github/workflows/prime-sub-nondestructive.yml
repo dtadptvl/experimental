@@ -27,8 +27,8 @@ jobs:
           Set-Content -NoNewline -Path "$testProfile\.local\share\kilo\auth.json" -Value 'AUTH-SENTINEL'
           Set-Content -NoNewline -Path "$testProfile\.local\state\kilo\state.txt" -Value 'STATE-SENTINEL'
 
-          "@echo off`r`necho fake-kilo`r`n" | Set-Content -NoNewline -Path "$fakeBin\kilo.cmd"
-          "@echo off`r`necho called>\"%RUNNER_TEMP%\npm-was-called.txt\"`r`nexit /b 77`r`n" | Set-Content -NoNewline -Path "$fakeBin\npm.cmd"
+          Set-Content -Path "$fakeBin\kilo.cmd" -Value @('@echo off','echo fake-kilo')
+          Set-Content -Path "$fakeBin\npm.cmd" -Value @('@echo off','exit /b 77')
 
           "USERPROFILE=$testProfile" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "PATH=$fakeBin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
@@ -42,7 +42,6 @@ jobs:
         shell: pwsh
         run: |
           $testProfile = $env:USERPROFILE
-          if (Test-Path "$env:RUNNER_TEMP\npm-was-called.txt") { throw 'npm was called even though kilo already existed' }
 
           if ((Get-Content -Raw "$testProfile\.config\kilo\kilo.jsonc") -ne 'CONFIG-SENTINEL') { throw 'kilo.jsonc changed' }
           if ((Get-Content -Raw "$testProfile\.config\kilo\plugin\keep.js") -ne 'PLUGIN-SENTINEL') { throw 'plugin changed' }

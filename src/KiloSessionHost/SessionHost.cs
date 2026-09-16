@@ -29,7 +29,9 @@ internal sealed class SessionHost : IDisposable
             _config.WorkingDirectory);
         _running = true;
 
-        var outputTask = PumpOutputAsync(_pty, _stop.Token);
+        // ConPTY uses synchronous anonymous pipe handles. Keep the blocking read on a
+        // dedicated worker so it can never prevent the named-pipe server from opening.
+        var outputTask = Task.Run(() => PumpOutputAsync(_pty, _stop.Token));
         var exitTask = WatchExitAsync(_pty);
 
         try
@@ -42,8 +44,8 @@ internal sealed class SessionHost : IDisposable
         finally
         {
             _stop.Cancel();
-            // Close the pseudo console and pipe handles before awaiting the reader.
-            // A synchronous anonymous pipe read cannot always be cancelled by token alone.
+            // Closing the pseudo console removes its write endpoint and unblocks the
+            // synchronous output reader with EOF.
             _pty?.Dispose();
             try { await outputTask; } catch { }
             try { await exitTask; } catch { }
@@ -78,6 +80,9 @@ internal sealed class SessionHost : IDisposable
                 }
             }
             catch (IOException)
+            {
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
             }
             finally
@@ -161,7 +166,9 @@ internal sealed class SessionHost : IDisposable
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                var read = await pty.Output.ReadAsync(buffer, cancellationToken);
+                // The FileStream wraps a synchronous CreatePipe handle. This call is
+                // intentionally executed on the worker created in RunAsync.
+                var read = pty.Output.Read(buffer, 0, buffer.Length);
                 if (read <= 0) break;
 
                 var chunk = new byte[read];
@@ -173,9 +180,6 @@ internal sealed class SessionHost : IDisposable
                     Data = Convert.ToBase64String(chunk)
                 });
             }
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
         }
         catch (IOException)
         {

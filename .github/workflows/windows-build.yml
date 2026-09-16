@@ -39,6 +39,7 @@ jobs:
           if (-not (Test-Path ./publish/KiloSessionManager.exe)) { throw 'KiloSessionManager.exe was not published.' }
 
       - name: SessionHost ConPTY smoke test
+        timeout-minutes: 3
         shell: pwsh
         run: ./tests/host-smoke.ps1 -HostPath ./publish/KiloSessionHost.exe
 

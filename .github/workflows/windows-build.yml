@@ -9,13 +9,13 @@ on:
   pull_request:
 
 concurrency:
-  group: kilo-session-manager-windows-ci
+  group: kilo-session-manager-windows-ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build-and-smoke-test:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -43,9 +43,12 @@ jobs:
           if (-not (Test-Path ./publish/KiloSessionManager.exe)) { throw 'KiloSessionManager.exe was not published.' }
 
       - name: SessionHost ConPTY smoke test
-        timeout-minutes: 3
+        timeout-minutes: 2
         shell: pwsh
-        run: ./tests/host-smoke.ps1 -HostPath ./publish/KiloSessionHost.exe
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          dotnet run --project tests/KiloSessionSmoke/KiloSessionSmoke.csproj -c Release -- ./publish/KiloSessionHost.exe
 
       - name: Package
         shell: pwsh
@@ -57,3 +60,4 @@ jobs:
           name: KiloSessionManager-win-x64
           path: KiloSessionManager-win-x64.zip
           if-no-files-found: error
+          retention-days: 30

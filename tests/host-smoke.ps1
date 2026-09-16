@@ -18,8 +18,22 @@ function Read-Line-With-Timeout($reader, [string]$stage, [int]$milliseconds = 10
 
 function Connect-HostPipe([string]$pipeName, [string]$stage) {
     Write-Host "[$stage] Connecting to $pipeName"
-    $pipe = [System.IO.Pipes.NamedPipeClientStream]::new('.', $pipeName, [System.IO.Pipes.PipeDirection]::InOut)
-    $pipe.Connect(10000)
+    $pipe = [System.IO.Pipes.NamedPipeClientStream]::new(
+        '.',
+        $pipeName,
+        [System.IO.Pipes.PipeDirection]::InOut,
+        [System.IO.Pipes.PipeOptions]::Asynchronous)
+    $cts = [System.Threading.CancellationTokenSource]::new([TimeSpan]::FromSeconds(10))
+    try {
+        $pipe.ConnectAsync($cts.Token).GetAwaiter().GetResult()
+    }
+    catch {
+        $pipe.Dispose()
+        throw "[$stage] Named pipe connect failed/timed out: $($_.Exception.Message)"
+    }
+    finally {
+        $cts.Dispose()
+    }
     $reader = [System.IO.StreamReader]::new($pipe, [Text.Encoding]::UTF8, $false, 4096, $true)
     $writer = [System.IO.StreamWriter]::new($pipe, [Text.Encoding]::UTF8, 4096, $true)
     $writer.AutoFlush = $true

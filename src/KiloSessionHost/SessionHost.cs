@@ -65,25 +65,28 @@ internal sealed class SessionHost : IDisposable
 
             await pipe.WaitForConnectionAsync(cancellationToken);
 
-            using var reader = new StreamReader(pipe, leaveOpen: true);
-            using var writer = new StreamWriter(pipe, leaveOpen: true) { AutoFlush = true };
+            var reader = new StreamReader(pipe, leaveOpen: true);
+            var writer = new StreamWriter(pipe, leaveOpen: true) { AutoFlush = true };
 
-            await AttachClientAsync(writer);
             try
             {
-                while (pipe.IsConnected && !cancellationToken.IsCancellationRequested)
+                await AttachClientAsync(writer);
+                try
                 {
-                    var line = await reader.ReadLineAsync(cancellationToken);
-                    if (line is null) break;
-                    var message = ProtocolJson.Deserialize(line);
-                    if (message is not null) await HandleClientMessageAsync(message, cancellationToken);
+                    while (pipe.IsConnected && !cancellationToken.IsCancellationRequested)
+                    {
+                        var line = await reader.ReadLineAsync(cancellationToken);
+                        if (line is null) break;
+                        var message = ProtocolJson.Deserialize(line);
+                        if (message is not null) await HandleClientMessageAsync(message, cancellationToken);
+                    }
                 }
-            }
-            catch (IOException)
-            {
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
+                catch (IOException)
+                {
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                }
             }
             finally
             {
@@ -91,6 +94,17 @@ internal sealed class SessionHost : IDisposable
                 {
                     if (ReferenceEquals(_clientWriter, writer)) _clientWriter = null;
                 }
+
+                // A client is allowed to close immediately after sending terminate.
+                // StreamWriter.Dispose() flushes by default and can therefore see a
+                // broken pipe; that is a normal disconnect, not a host failure.
+                try { writer.Dispose(); }
+                catch (IOException) { }
+                catch (ObjectDisposedException) { }
+
+                try { reader.Dispose(); }
+                catch (IOException) { }
+                catch (ObjectDisposedException) { }
             }
         }
     }

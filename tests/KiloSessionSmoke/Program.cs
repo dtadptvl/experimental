@@ -26,7 +26,7 @@ var config = new
     pipeName,
     workingDirectory = Path.GetTempPath(),
     executable = Environment.GetEnvironmentVariable("COMSPEC") ?? "cmd.exe",
-    arguments = "/d /q",
+    arguments = "/d /q /k echo KM_SMOKE_READY",
     ringBufferBytes = 1024 * 1024
 };
 await File.WriteAllTextAsync(configPath, JsonSerializer.Serialize(config));

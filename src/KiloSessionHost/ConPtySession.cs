@@ -68,11 +68,6 @@ internal sealed class ConPtySession : IDisposable
             var hr = CreatePseudoConsole(new Coord(cols, rows), inputRead, outputWrite, 0, out pseudoConsole);
             if (hr != 0) Marshal.ThrowExceptionForHR(hr);
 
-            CloseHandle(inputRead);
-            inputRead = IntPtr.Zero;
-            CloseHandle(outputWrite);
-            outputWrite = IntPtr.Zero;
-
             IntPtr attributeListSize = IntPtr.Zero;
             _ = InitializeProcThreadAttributeList(IntPtr.Zero, 1, 0, ref attributeListSize);
             if (attributeListSize == IntPtr.Zero)
@@ -121,6 +116,15 @@ internal sealed class ConPtySession : IDisposable
             threadHandle = processInfo.hThread;
             var processId = unchecked((int)processInfo.dwProcessId);
 
+            // Microsoft requires the ConPTY-side channel handles passed to
+            // CreatePseudoConsole to stay open until the child has been created and
+            // attached through PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE. Closing them
+            // earlier can make the attached console client immediately exit.
+            CloseHandle(inputRead);
+            inputRead = IntPtr.Zero;
+            CloseHandle(outputWrite);
+            outputWrite = IntPtr.Zero;
+
             CloseHandle(threadHandle);
             threadHandle = IntPtr.Zero;
 
@@ -133,8 +137,8 @@ internal sealed class ConPtySession : IDisposable
             var outputSafe = new SafeFileHandle(outputRead, ownsHandle: true);
             outputRead = IntPtr.Zero;
 
-            // CreatePipe returns synchronous handles. Marking these FileStreams async/overlapped
-            // can fail after the child has already started, leaving the child orphaned.
+            // CreatePipe returns synchronous handles. Keep the FileStreams synchronous;
+            // SessionHost places blocking output reads on a dedicated worker thread.
             var inputStream = new FileStream(inputSafe, FileAccess.Write, 4096, isAsync: false);
             var outputStream = new FileStream(outputSafe, FileAccess.Read, 32768, isAsync: false);
 
@@ -228,8 +232,6 @@ internal sealed class ConPtySession : IDisposable
         if (_disposed) return;
         _disposed = true;
 
-        // Closing the pseudo console first closes its pipe endpoints. That lets any
-        // synchronous output read return EOF instead of deadlocking FileStream.Dispose().
         if (_pseudoConsole != IntPtr.Zero) ClosePseudoConsole(_pseudoConsole);
         _input.Dispose();
         _output.Dispose();

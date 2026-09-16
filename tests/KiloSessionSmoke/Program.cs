@@ -19,15 +19,14 @@ if (!File.Exists(hostPath))
 var instance = Guid.NewGuid().ToString("N");
 var pipeName = $"kilo-manager-smoke-{instance}";
 var configPath = Path.Combine(Path.GetTempPath(), $"kilo-host-{instance}.json");
-var powerShell = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
 var config = new
 {
     projectId = "smoke-project",
     instanceId = instance,
     pipeName,
     workingDirectory = Path.GetTempPath(),
-    executable = powerShell,
-    arguments = "-NoLogo -NoProfile -NoExit -Command Write-Output KM_SMOKE_READY",
+    executable = Environment.GetEnvironmentVariable("COMSPEC") ?? "cmd.exe",
+    arguments = "/d /q /k echo KM_SMOKE_READY",
     ringBufferBytes = 1024 * 1024
 };
 await File.WriteAllTextAsync(configPath, JsonSerializer.Serialize(config));
@@ -45,12 +44,15 @@ using var host = new Process
     }
 };
 
+Task<string>? stdoutTask = null;
+Task<string>? stderrTask = null;
+
 try
 {
     Console.WriteLine("[start] Launching SessionHost");
     if (!host.Start()) throw new InvalidOperationException("Process.Start returned false.");
-    var stdoutTask = host.StandardOutput.ReadToEndAsync();
-    var stderrTask = host.StandardError.ReadToEndAsync();
+    stdoutTask = host.StandardOutput.ReadToEndAsync();
+    stderrTask = host.StandardError.ReadToEndAsync();
 
     Console.WriteLine($"[attach-1] Connecting to {pipeName}");
     var first = await ConnectAsync(pipeName, TimeSpan.FromSeconds(10));
@@ -73,7 +75,7 @@ try
         Require(status.GetProperty("type").GetString() == "status" && status.GetProperty("running").GetBoolean(), "Host not running.");
         Console.WriteLine("[attach-1] Handshake OK");
 
-        var token = Convert.ToBase64String(Encoding.UTF8.GetBytes("Write-Output KM_SMOKE_FIRST\r\n"));
+        var token = Convert.ToBase64String(Encoding.UTF8.GetBytes("echo KM_SMOKE_FIRST\r\n"));
         await first.Writer.WriteLineAsync(JsonSerializer.Serialize(new { type = "input", data = token }));
         Console.WriteLine("[io] Sent terminal input");
 
@@ -82,8 +84,14 @@ try
         while (!found && !ioTimeout.IsCancellationRequested)
         {
             var message = await ReadMessageAsync(first.Reader, "io/output", ioTimeout.Token);
+            if (message.GetProperty("type").GetString() == "status")
+            {
+                Console.WriteLine($"[io] status={message}");
+                continue;
+            }
             if (message.GetProperty("type").GetString() != "output" || !message.TryGetProperty("data", out var data)) continue;
             var text = Encoding.UTF8.GetString(Convert.FromBase64String(data.GetString() ?? ""));
+            Console.WriteLine($"[io] output={text.Replace("\r", "\\r").Replace("\n", "\\n")}");
             if (text.Contains("KM_SMOKE_FIRST", StringComparison.Ordinal)) found = true;
         }
         Require(found, "ConPTY output did not contain the smoke token.");
@@ -129,14 +137,20 @@ catch (Exception ex)
     catch { }
     try
     {
-        var stdout = await host.StandardOutput.ReadToEndAsync().WaitAsync(TimeSpan.FromSeconds(2));
-        if (!string.IsNullOrWhiteSpace(stdout)) Console.Error.WriteLine("--- host stdout ---\n" + stdout);
+        if (stdoutTask is not null)
+        {
+            var stdout = await stdoutTask.WaitAsync(TimeSpan.FromSeconds(2));
+            if (!string.IsNullOrWhiteSpace(stdout)) Console.Error.WriteLine("--- host stdout ---\n" + stdout);
+        }
     }
     catch { }
     try
     {
-        var stderr = await host.StandardError.ReadToEndAsync().WaitAsync(TimeSpan.FromSeconds(2));
-        if (!string.IsNullOrWhiteSpace(stderr)) Console.Error.WriteLine("--- host stderr ---\n" + stderr);
+        if (stderrTask is not null)
+        {
+            var stderr = await stderrTask.WaitAsync(TimeSpan.FromSeconds(2));
+            if (!string.IsNullOrWhiteSpace(stderr)) Console.Error.WriteLine("--- host stderr ---\n" + stderr);
+        }
     }
     catch { }
     return 1;

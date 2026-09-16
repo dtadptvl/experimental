@@ -1,0 +1,59 @@
+name: prime-sub-routing
+
+on:
+  push:
+    branches:
+      - test/prime-sub-cost-routing
+  workflow_dispatch:
+
+jobs:
+  policy-invariants:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check routing policy invariants
+        run: python3 prime-sub/tests/test_policy.py
+
+  kilo-agent-parse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Kilo CLI
+        run: npm install -g @kilocode/cli@latest
+      - name: Install test agents and minimal config
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.config/kilo/agent"
+          cp prime-sub/agents/prime.md "$HOME/.config/kilo/agent/prime.md"
+          cp prime-sub/agents/sub.md "$HOME/.config/kilo/agent/sub.md"
+          cat > "$HOME/.config/kilo/kilo.jsonc" <<'EOF'
+          {
+            "default_agent": "prime",
+            "experimental": { "task_model_selection": false },
+            "provider": {
+              "9router": {
+                "npm": "@ai-sdk/openai-compatible",
+                "name": "9router",
+                "options": {
+                  "baseURL": "http://127.0.0.1:9/v1",
+                  "apiKey": "ci-placeholder"
+                },
+                "models": {
+                  "sub": {
+                    "id": "Sub",
+                    "name": "Sub",
+                    "reasoning": true,
+                    "tool_call": true
+                  }
+                }
+              }
+            }
+          }
+          EOF
+      - name: Resolve Prime agent
+        run: kilo debug agent prime
+      - name: Resolve Sub agent
+        run: kilo debug agent sub

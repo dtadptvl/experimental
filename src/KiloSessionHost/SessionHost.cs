@@ -42,6 +42,9 @@ internal sealed class SessionHost : IDisposable
         finally
         {
             _stop.Cancel();
+            // Close the pseudo console and pipe handles before awaiting the reader.
+            // A synchronous anonymous pipe read cannot always be cancelled by token alone.
+            _pty?.Dispose();
             try { await outputTask; } catch { }
             try { await exitTask; } catch { }
         }
@@ -175,6 +178,9 @@ internal sealed class SessionHost : IDisposable
         {
         }
         catch (IOException)
+        {
+        }
+        catch (ObjectDisposedException)
         {
         }
     }

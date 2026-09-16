@@ -11,6 +11,7 @@ internal sealed class ConPtySession : IDisposable
     private const uint ExtendedStartupInfoPresent = 0x00080000;
     private const uint CreateUnicodeEnvironment = 0x00000400;
     private const uint ProcThreadAttributePseudoConsole = 0x00020016;
+    private const uint StartfUseStdHandles = 0x00000100;
     private const uint HandleFlagInherit = 0x00000001;
     private const uint WaitObject0 = 0x00000000;
     private const uint WaitTimeout = 0x00000102;
@@ -68,6 +69,13 @@ internal sealed class ConPtySession : IDisposable
             var hr = CreatePseudoConsole(new Coord(cols, rows), inputRead, outputWrite, 0, out pseudoConsole);
             if (hr != 0) Marshal.ThrowExceptionForHR(hr);
 
+            // CreatePseudoConsole duplicates the PTY-side endpoints into conhost. The
+            // controller keeps only inputWrite and outputRead from this point onward.
+            CloseHandle(inputRead);
+            inputRead = IntPtr.Zero;
+            CloseHandle(outputWrite);
+            outputWrite = IntPtr.Zero;
+
             IntPtr attributeListSize = IntPtr.Zero;
             _ = InitializeProcThreadAttributeList(IntPtr.Zero, 1, 0, ref attributeListSize);
             if (attributeListSize == IntPtr.Zero)
@@ -91,6 +99,13 @@ internal sealed class ConPtySession : IDisposable
 
             var startup = new StartupInfoEx();
             startup.StartupInfo.cb = Marshal.SizeOf<StartupInfoEx>();
+            // Important when SessionHost itself has redirected/no stdio. Without this,
+            // Windows may duplicate the parent's default std handles into the console
+            // child even though bInheritHandles is false, bypassing ConPTY.
+            startup.StartupInfo.dwFlags = StartfUseStdHandles;
+            startup.StartupInfo.hStdInput = IntPtr.Zero;
+            startup.StartupInfo.hStdOutput = IntPtr.Zero;
+            startup.StartupInfo.hStdError = IntPtr.Zero;
             startup.lpAttributeList = attributeList;
 
             var commandLine = new StringBuilder();
@@ -116,15 +131,6 @@ internal sealed class ConPtySession : IDisposable
             threadHandle = processInfo.hThread;
             var processId = unchecked((int)processInfo.dwProcessId);
 
-            // Microsoft requires the ConPTY-side channel handles passed to
-            // CreatePseudoConsole to stay open until the child has been created and
-            // attached through PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE. Closing them
-            // earlier can make the attached console client immediately exit.
-            CloseHandle(inputRead);
-            inputRead = IntPtr.Zero;
-            CloseHandle(outputWrite);
-            outputWrite = IntPtr.Zero;
-
             CloseHandle(threadHandle);
             threadHandle = IntPtr.Zero;
 
@@ -137,8 +143,8 @@ internal sealed class ConPtySession : IDisposable
             var outputSafe = new SafeFileHandle(outputRead, ownsHandle: true);
             outputRead = IntPtr.Zero;
 
-            // CreatePipe returns synchronous handles. Keep the FileStreams synchronous;
-            // SessionHost places blocking output reads on a dedicated worker thread.
+            // CreatePipe returns synchronous handles. SessionHost keeps the blocking
+            // output read on a dedicated worker thread.
             var inputStream = new FileStream(inputSafe, FileAccess.Write, 4096, isAsync: false);
             var outputStream = new FileStream(outputSafe, FileAccess.Read, 32768, isAsync: false);
 
@@ -167,11 +173,13 @@ internal sealed class ConPtySession : IDisposable
         }
     }
 
-    public async Task WriteAsync(byte[] data, CancellationToken cancellationToken = default)
+    public Task WriteAsync(byte[] data, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        await _input.WriteAsync(data, cancellationToken);
-        await _input.FlushAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        _input.Write(data, 0, data.Length);
+        _input.Flush();
+        return Task.CompletedTask;
     }
 
     public void Resize(int cols, int rows)

@@ -133,15 +133,22 @@ internal sealed class ConPtySession : IDisposable
             var outputSafe = new SafeFileHandle(outputRead, ownsHandle: true);
             outputRead = IntPtr.Zero;
 
-            var inputStream = new FileStream(inputSafe, FileAccess.Write, 4096, isAsync: true);
-            var outputStream = new FileStream(outputSafe, FileAccess.Read, 32768, isAsync: true);
+            // CreatePipe returns synchronous handles. Marking these FileStreams async/overlapped
+            // can fail after the child has already started, leaving the child orphaned.
+            var inputStream = new FileStream(inputSafe, FileAccess.Write, 4096, isAsync: false);
+            var outputStream = new FileStream(outputSafe, FileAccess.Read, 32768, isAsync: false);
 
             return new ConPtySession(pseudoConsole, processHandle, processId, inputStream, outputStream);
         }
         catch
         {
             if (threadHandle != IntPtr.Zero) CloseHandle(threadHandle);
-            if (processHandle != IntPtr.Zero) CloseHandle(processHandle);
+            if (processHandle != IntPtr.Zero)
+            {
+                _ = TerminateProcess(processHandle, 1);
+                _ = WaitForSingleObject(processHandle, 2000);
+                CloseHandle(processHandle);
+            }
             if (attributeList != IntPtr.Zero)
             {
                 DeleteProcThreadAttributeList(attributeList);

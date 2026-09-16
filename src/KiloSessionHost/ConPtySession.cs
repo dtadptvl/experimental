@@ -227,9 +227,12 @@ internal sealed class ConPtySession : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+
+        // Closing the pseudo console first closes its pipe endpoints. That lets any
+        // synchronous output read return EOF instead of deadlocking FileStream.Dispose().
+        if (_pseudoConsole != IntPtr.Zero) ClosePseudoConsole(_pseudoConsole);
         _input.Dispose();
         _output.Dispose();
-        if (_pseudoConsole != IntPtr.Zero) ClosePseudoConsole(_pseudoConsole);
         if (_processHandle != IntPtr.Zero) CloseHandle(_processHandle);
     }
 

@@ -19,14 +19,15 @@ if (!File.Exists(hostPath))
 var instance = Guid.NewGuid().ToString("N");
 var pipeName = $"kilo-manager-smoke-{instance}";
 var configPath = Path.Combine(Path.GetTempPath(), $"kilo-host-{instance}.json");
+var powerShell = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
 var config = new
 {
     projectId = "smoke-project",
     instanceId = instance,
     pipeName,
     workingDirectory = Path.GetTempPath(),
-    executable = Environment.GetEnvironmentVariable("COMSPEC") ?? "cmd.exe",
-    arguments = "/d /q /k echo KM_SMOKE_READY",
+    executable = powerShell,
+    arguments = "-NoLogo -NoProfile -NoExit -Command Write-Output KM_SMOKE_READY",
     ringBufferBytes = 1024 * 1024
 };
 await File.WriteAllTextAsync(configPath, JsonSerializer.Serialize(config));
@@ -61,6 +62,10 @@ try
         var hello = await ReadMessageAsync(first.Reader, "attach-1/hello");
         var snapshot = await ReadMessageAsync(first.Reader, "attach-1/snapshot");
         var status = await ReadMessageAsync(first.Reader, "attach-1/status");
+        var initialText = Encoding.UTF8.GetString(Convert.FromBase64String(snapshot.GetProperty("data").GetString() ?? ""));
+        Console.WriteLine($"[attach-1] hello={hello}");
+        Console.WriteLine($"[attach-1] status={status}");
+        Console.WriteLine($"[attach-1] snapshot={initialText.Replace("\r", "\\r").Replace("\n", "\\n")}");
         Require(hello.GetProperty("type").GetString() == "hello", "Invalid hello message.");
         Require(hello.GetProperty("projectId").GetString() == "smoke-project", "Wrong project id.");
         Require(hello.GetProperty("instanceId").GetString() == instance, "Wrong instance id.");
@@ -68,7 +73,7 @@ try
         Require(status.GetProperty("type").GetString() == "status" && status.GetProperty("running").GetBoolean(), "Host not running.");
         Console.WriteLine("[attach-1] Handshake OK");
 
-        var token = Convert.ToBase64String(Encoding.UTF8.GetBytes("echo KM_SMOKE_FIRST\r\n"));
+        var token = Convert.ToBase64String(Encoding.UTF8.GetBytes("Write-Output KM_SMOKE_FIRST\r\n"));
         await first.Writer.WriteLineAsync(JsonSerializer.Serialize(new { type = "input", data = token }));
         Console.WriteLine("[io] Sent terminal input");
 

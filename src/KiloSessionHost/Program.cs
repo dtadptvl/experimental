@@ -1,5 +1,6 @@
 using System.Text.Json;
 using KiloSession.Shared;
+using KiloSessionHost;
 
 if (!OperatingSystem.IsWindows())
 {

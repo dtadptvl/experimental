@@ -1,0 +1,59 @@
+name: Build Hackintosh B365 EFI
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - hackintosh-opencore-b365-i7-8700
+    paths:
+      - "hackintosh-b365/**"
+      - ".github/workflows/hackintosh-b365.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build EFI
+        run: python hackintosh-b365/build.py
+
+      - name: Validate file references
+        run: python hackintosh-b365/validate.py
+
+      - name: Run OpenCore ocvalidate
+        shell: pwsh
+        run: |
+          & ".\hackintosh-b365\dist\ocvalidate.exe" ".\hackintosh-b365\dist\EFI\OC\config.plist"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Ensure no final SMBIOS identity is committed
+        shell: pwsh
+        run: |
+          $cfg = Get-Content ".\hackintosh-b365\dist\EFI\OC\config.plist" -Raw
+          if ($cfg -notmatch "REPLACE_SERIAL" -or $cfg -notmatch "REPLACE_MLB") {
+            throw "Build unexpectedly contains a final SMBIOS identity"
+          }
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $zip = ".\hackintosh-b365\B365-i7-8700-OpenCore.zip"
+          Compress-Archive -Path ".\hackintosh-b365\dist\*" -DestinationPath $zip -Force
+
+      - name: Upload EFI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: B365-i7-8700-OpenCore
+          path: hackintosh-b365/B365-i7-8700-OpenCore.zip
+          if-no-files-found: error

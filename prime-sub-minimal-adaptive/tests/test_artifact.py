@@ -93,7 +93,7 @@ def test_human_config_guide_has_only_required_native_settings() -> None:
     assert "task_model_selection" in guide
     assert "9router/sub" in guide
     assert '"timeout": 300000' in guide
-    assert '"chunkTimeout": 300000' in guide
+    assert '"chunkTimeout": 1800000' in guide
     assert "does **not** edit `kilo.json` or `kilo.jsonc`" in guide
     assert "Built-in agents need no changes" in guide
     assert "current native Kilo does not impose a universal mid-stream watchdog" in guide

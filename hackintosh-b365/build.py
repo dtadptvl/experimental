@@ -220,7 +220,7 @@ def configure_plist(sample, out):
 
     p["UEFI"]["ConnectDrivers"] = True
     p["UEFI"]["Drivers"] = [
-        driver_entry("OpenRuntime.efi", True),
+        driver_entry("OpenRuntime.efi", False),
         driver_entry("HfsPlus.efi", False),
     ]
     p["UEFI"]["APFS"]["MinDate"] = -1

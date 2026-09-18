@@ -26,7 +26,7 @@ Minimal relevant fragment (merge; do not replace your document):
       "options": {
         // Safety-net values, deliberately loose enough not to be normal routing controls.
         "timeout": 300000,
-        "chunkTimeout": 300000
+        "chunkTimeout": 1800000
       },
       "models": {
         "sub": {
@@ -38,7 +38,7 @@ Minimal relevant fragment (merge; do not replace your document):
 }
 ```
 
-`timeout` bounds request setup/first-byte waiting. `chunkTimeout` bounds silent gaps in a streamed response. They are required because current native Kilo does not impose a universal mid-stream watchdog when no provider chunk timeout is configured. The architecture otherwise uses native Kilo's Task lifecycle, Sub `steps`, `doom_loop`, and individual tool timeouts rather than a custom watchdog process.
+`timeout` bounds request setup/first-byte waiting. `chunkTimeout` is set to 1,800,000 ms (30 minutes) and bounds silent gaps in a streamed response. They are required because current native Kilo does not impose a universal mid-stream watchdog when no provider chunk timeout is configured. The architecture otherwise uses native Kilo's Task lifecycle, Sub `steps`, `doom_loop`, and individual tool timeouts rather than a custom watchdog process.
 
 Prime is intentionally not model-pinned by this package. Select/configure the stronger Prime model through normal Kilo model selection. If desired, set `default_agent` to `prime`; otherwise launch work with `--agent prime`.
 

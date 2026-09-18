@@ -262,6 +262,7 @@ if errorlevel 1 (
 )
 echo.
 echo Next: copy the EFI folder to the FAT32 EFI partition.
+if defined CI exit /b 0
 pause
 """
     path.write_text(content, encoding="utf-8", newline="\r\n")

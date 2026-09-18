@@ -250,10 +250,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^
   "$nic=Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object {$_.InterfaceDescription -match 'I219-V'} | Select-Object -First 1;" ^
   "if($nic -and $nic.MacAddress){$hex=$nic.MacAddress -replace '[-:]',''}else{$hex='112233000000'};" ^
   "$rom=[Convert]::ToBase64String([byte[]]@(for($i=0;$i -lt 12;$i+=2){[Convert]::ToByte($hex.Substring($i,2),16)}));" ^
-  "[xml]$x=Get-Content -LiteralPath $cfg -Raw;" ^
-  "function SetVal([string]$key,[string]$val,[string]$node='string'){ $keys=$x.SelectNodes('//key'); $k=$keys|Where-Object {$_.InnerText -eq $key}|Select-Object -Last 1; if(!$k){throw ('Missing plist key '+$key)}; $n=$k.NextSibling; while($n -and $n.NodeType -ne [System.Xml.XmlNodeType]::Element){$n=$n.NextSibling}; if($n.Name -ne $node){throw ('Unexpected node for '+$key+': '+$n.Name)}; $n.InnerText=$val };" ^
-  "SetVal 'MLB' $mlb; SetVal 'SystemSerialNumber' $serial; SetVal 'SystemUUID' $uuid; SetVal 'ROM' $rom 'data';" ^
-  "$x.Save($cfg); Write-Host ''; Write-Host 'EFI finalised successfully.' -ForegroundColor Green; Write-Host ('Serial: '+$serial); Write-Host ('UUID:   '+$uuid); Write-Host 'Do not publish this finalised config.plist.'"
+  "$text=[IO.File]::ReadAllText($cfg);" ^
+  "foreach($required in @('REPLACE_MLB','REPLACE_SERIAL','00000000-0000-0000-0000-000000000000','ESIzAAAA')){if(!$text.Contains($required)){throw ('Missing config placeholder: '+$required)}};" ^
+  "$text=$text.Replace('REPLACE_MLB',$mlb).Replace('REPLACE_SERIAL',$serial).Replace('00000000-0000-0000-0000-000000000000',$uuid).Replace('ESIzAAAA',$rom);" ^
+  "$utf8=New-Object System.Text.UTF8Encoding($false); [IO.File]::WriteAllText($cfg,$text,$utf8);" ^
+  "Write-Host ''; Write-Host 'EFI finalised successfully.' -ForegroundColor Green; Write-Host ('Serial: '+$serial); Write-Host ('UUID:   '+$uuid); Write-Host 'Do not publish this finalised config.plist.'"
 if errorlevel 1 (
   echo.
   echo ERROR: EFI finalisation failed.

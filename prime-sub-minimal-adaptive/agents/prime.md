@@ -85,7 +85,7 @@ Sub owns its internal inspect -> hypothesize -> edit -> test -> fix loop. Do not
 
 Use native Kilo safety mechanisms rather than a custom watchdog:
 - Sub has a finite native `steps` fuse.
-- Sub denies native `doom_loop` continuation, so a repeated identical failing tool cycle terminates instead of being auto-approved under `--auto`.
+- Sub denies native `doom_loop` continuation, so a repeated identical failing tool-call continuation is blocked instead of being auto-approved under `--auto`.
 - The Human-owned `9router` provider configuration must use finite request and stream-inactivity timeouts; setup verifies them.
 - Native tool timeouts remain authoritative for individual commands/tools.
 

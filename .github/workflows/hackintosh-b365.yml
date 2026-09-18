@@ -37,6 +37,20 @@ jobs:
           & ".\hackintosh-b365\dist\ocvalidate.exe" ".\hackintosh-b365\dist\EFI\OC\config.plist"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Smoke-test local SMBIOS finalizer
+        shell: pwsh
+        run: |
+          Copy-Item ".\\hackintosh-b365\\dist" ".\\hackintosh-b365\\smoke" -Recurse
+          & ".\\hackintosh-b365\\smoke\\Finalize-EFI.cmd" *> $null
+          if ($LASTEXITCODE -ne 0) { throw "Finalize-EFI.cmd failed" }
+          & ".\\hackintosh-b365\\smoke\\ocvalidate.exe" ".\\hackintosh-b365\\smoke\\EFI\\OC\\config.plist"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $final = Get-Content ".\\hackintosh-b365\\smoke\\EFI\\OC\\config.plist" -Raw
+          if ($final -match "REPLACE_SERIAL" -or $final -match "REPLACE_MLB") {
+            throw "Finalizer did not replace SMBIOS placeholders"
+          }
+          Remove-Item ".\\hackintosh-b365\\smoke" -Recurse -Force
+
       - name: Ensure no final SMBIOS identity is committed
         shell: pwsh
         run: |

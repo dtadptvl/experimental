@@ -1,0 +1,4 @@
+Kilo-Org/kilocode
+Audited source commit: 010f511d731df2649bb3f9b660e309ea7e869ac8
+Implementation target: packages/opencode
+Feature gate: KILO_EXPERIMENTAL_STRUCTURED_RECALL=1

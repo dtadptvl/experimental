@@ -36,7 +36,7 @@ def test_sub_git_ownership_boundary() -> None:
     for safe in ("git status *", "git diff *", "git show *", "git log *", "git rev-parse *"):
         assert f'"{safe}": allow' in sub
     body = read("agents/sub.md")
-    for phrase in ("Do not create commits", "worktrees", "Do not edit `.prime/state.json`"):
+    for phrase in ("commit/branch/push", "worktree", "edit `.prime/state.json`"):
         assert phrase in body
 
 
@@ -45,22 +45,37 @@ def test_prompts_preserve_adaptive_autonomous_recovery() -> None:
     sub = read("agents/sub.md")
     for needle in ("EASY", "MEDIUM", "HARD", "FAILED_TECHNICAL", "BLOCKED_EXTERNAL", "9router/sub"):
         assert needle in prime
-    assert "There is no fixed total recovery-attempt budget" in prime
-    assert "Never repeat a no-progress strategy" in prime
-    assert "Sub `DONE` is a claim" in prime
-    assert "Do not spawn agents or Tasks" in sub
-    assert "reversible -> minimal-change -> backward-compatible" in prime
+    pl = prime.lower()
+    sl = sub.lower()
+    assert "fixed total attempt count" in pl
+    assert "repeat no-progress strategy" in pl
+    assert "sub `done` != pass" in pl
+    assert "spawn task/agent" in sl
+    assert "reversible -> minimal-change -> backward-compatible" in pl
 
 
 def test_prime_bootstraps_only_minimal_state() -> None:
     prime = read("agents/prime.md")
-    assert "If `.prime/state.json` is absent" in prime
+    assert "If absent create exactly" in prime
     for key in ('"objective"', '"tasks"', '"active"', '"acceptance"', '"next"', '"git"', '"evidence"'):
         assert key in prime
-    assert '"revision": 0' in prime
-    assert '"next": "capture objective"' in prime
-    assert "Native `/memory` is for durable project knowledge, not live orchestration state" in prime
+    assert '"revision":0' in prime
+    assert '"next":"capture objective"' in prime
+    assert "`/memory` = durable knowledge" in prime
     assert not (ROOT / "templates").exists()
+
+
+def test_targeted_checks_and_prime_quality_bar() -> None:
+    prime = read("agents/prime.md")
+    sub = read("agents/sub.md")
+    for text in (prime, sub):
+        assert "targeted/cheap checks" in text
+        assert "rebuild unchanged dependencies" in text
+        assert "full acceptance suites" in text
+    assert "PRIME'S QUALITY BAR" in prime
+    assert "successful execution/tests" in prime.lower() or "tests alone" in sub.lower()
+    assert "design quality" in prime
+    assert "correctness OR material design quality" in prime
 
 
 def test_contract_has_only_required_identity_and_context() -> None:
